@@ -221,6 +221,51 @@
                 padding: 30px 4vw 20px 4vw;
             }
         }
+        /* added: artifact canvas and effect classes */
+        .artifact-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 99999;
+            pointer-events: none;
+            image-rendering: pixelated;
+        }
+        .stretch-effect {
+            transition: transform 1s cubic-bezier(.2,.9,.2,1);
+            transform-origin: center;
+        }
+        .stretch-effect.stretched {
+            transform: scaleX(1.25) scaleY(1.05);
+        }
+        .stretch-effect.glitched {
+            transition: transform 0.15s linear;
+            transform: scaleX(1.02) scaleY(0.98) translateX(6px);
+            filter: hue-rotate(30deg) contrast(1.2) saturate(1.4);
+        }
+        .locked-ui * {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+        }
+        /* ensure notebook sits on top and turns white when active */
+        #notebook-wrap {
+            max-width:100%;
+            text-align:right;
+            padding:12px 18px 40px 18px;
+            position:relative;
+            z-index: 1000;
+        }
+        #notebook {
+            width:80px;
+            height:auto;
+            border:none;
+            display:inline-block;
+            cursor:pointer;
+            transition: filter 0.18s, opacity 0.18s;
+        }
+        #notebook.whiten {
+            filter: grayscale(1) invert(1) brightness(4) contrast(1);
+        }
     </style>
 </head>
 <body>
@@ -254,10 +299,109 @@
     </div>
     <footer>
         WARNING: The Lost Crew Files contains disturbing content. Viewer discretion is advised. <br>
-        © 2025 The Lost Crew Files Archive. All rights reserved.
+        2025 The Lost Crew Files Archive. All rights reserved.
     </footer>
-    <div style="max-width:100%; text-align:right; padding:12px 18px 40px 18px;">
-        <img src="assets/notebookGO.png" alt="Notebook" style="width:80px; height:auto; border:none; display:inline-block;">
+    <div id="notebook-wrap" style="max-width:100%; text-align:right; padding:12px 18px 40px 18px;">
+        <img id="notebook" src="assets/notebookGO.png" alt="EYES OPEN">
     </div>
+    <script>
+        // ...added script to trigger artifact/stretch/glitch and lock input...
+        (function(){
+            const notebook = document.getElementById('notebook');
+            const body = document.body;
+            let active = false;
+
+            function createCanvas() {
+                const c = document.createElement('canvas');
+                c.className = 'artifact-canvas';
+                c.width = innerWidth;
+                c.height = innerHeight;
+                document.body.appendChild(c);
+                return c;
+            }
+
+            function drawPixels(canvas, frameSeed=0) {
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width = innerWidth;
+                const h = canvas.height = innerHeight;
+                const size = 6; // pixel block size
+                for (let y=0;y<h;y+=size){
+                    for (let x=0;x<w;x+=size){
+                        const r = (Math.sin((x+y+frameSeed)*0.01)*127 + 128)|0;
+                        const g = (Math.cos((x*0.7+y*0.3+frameSeed)*0.008)*127 + 128)|0;
+                        const b = (Math.sin((x*0.3-y*0.6+frameSeed)*0.012)*127 + 128)|0;
+                        ctx.fillStyle = `rgb(${r},${g},${b})`;
+                        ctx.fillRect(x, y, size, size);
+                    }
+                }
+            }
+
+            function lockInputs() {
+                // prevent keyboard
+                window.addEventListener('keydown', preventAll, true);
+                window.addEventListener('keyup', preventAll, true);
+                window.addEventListener('keypress', preventAll, true);
+                // prevent mouse interactions
+                window.addEventListener('mousedown', preventAll, true);
+                window.addEventListener('mouseup', preventAll, true);
+                window.addEventListener('click', preventAll, true);
+                window.addEventListener('contextmenu', preventAll, true);
+                window.addEventListener('mousemove', preventAll, true);
+                body.style.cursor = 'none';
+            }
+            function preventAll(e){ e.preventDefault(); e.stopPropagation(); return false; }
+
+            notebook.addEventListener('click', async function onClick(e){
+                if (active) return;
+                active = true;
+                // make notebook visually highlight (white)
+                notebook.classList.add('whiten');
+
+                // create artifact canvas and animate pixels for total 1.5s
+                const canvas = createCanvas();
+                let seed = 0;
+                const raf = () => {
+                    drawPixels(canvas, seed++);
+                    if (!stopAnim) requestAnimationFrame(raf);
+                };
+                let stopAnim = false;
+                raf();
+
+                // apply stretch to whole document
+                body.classList.add('stretch-effect');
+                setTimeout(()=> body.classList.add('stretched'), 20); // start stretch
+
+                // after 1s trigger quick glitch for 0.5s
+                await new Promise(r => setTimeout(r, 1000));
+                body.classList.remove('stretched');
+                body.classList.add('glitched');
+
+                // continue pixel noise and glitch briefly
+                await new Promise(r => setTimeout(r, 500));
+
+                // hide everything except notebook
+                stopAnim = true;
+                canvas.remove();
+                // move notebook to fixed corner and keep same visual spot
+                const keep = document.getElementById('notebook-wrap');
+                keep.style.position = 'fixed';
+                keep.style.right = '18px';
+                keep.style.bottom = '40px';
+                keep.style.left = 'auto';
+                keep.style.zIndex = 1000000;
+
+                // remove other visible content
+                Array.from(document.body.children).forEach(ch=>{
+                    if (ch !== keep && ch.id !== 'notebook-wrap') {
+                        ch.style.display = 'none';
+                    }
+                });
+
+                // lock inputs and hide cursor
+                lockInputs();
+                body.classList.add('locked-ui');
+            }, {capture:true});
+        })();
+    </script>
 </body>
 </html>
